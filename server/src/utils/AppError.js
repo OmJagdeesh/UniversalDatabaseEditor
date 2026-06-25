@@ -15,4 +15,12 @@ export class AppError extends Error {
   static internal(message = 'Internal server error') {
     return new AppError(message, 500);
   }
+
+  static conflict(message = 'Conflict') {
+    return new AppError(message, 409);
+  }
+
+  static forbidden(message = 'Forbidden') {
+    return new AppError(message, 403);
+  }
 }
