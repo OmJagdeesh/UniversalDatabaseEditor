@@ -1,5 +1,10 @@
+import { ToastProvider } from './components/ui/Toast.jsx';
 import { AppShell } from './app/AppShell.jsx';
 
 export default function App() {
-  return <AppShell />;
+  return (
+    <ToastProvider>
+      <AppShell />
+    </ToastProvider>
+  );
 }

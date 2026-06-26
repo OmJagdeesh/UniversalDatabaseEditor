@@ -14,6 +14,9 @@ export default {
       },
       boxShadow: {
         panel: '0 10px 30px rgba(23, 32, 38, 0.08)'
+      },
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif']
       }
     }
   },
