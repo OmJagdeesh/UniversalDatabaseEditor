@@ -8,4 +8,5 @@ coverage/
 .DS_Store
 Thumbs.db
 uploads/
+server/data/connections.json
 

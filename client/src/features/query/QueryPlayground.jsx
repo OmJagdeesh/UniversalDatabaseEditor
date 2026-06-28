@@ -106,6 +106,8 @@ export function QueryPlayground({ connectionId, connectionType }) {
   const rows = result?.rows || [];
   const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
   const rowsAffected = result?.rowsAffected ?? result?.changes ?? null;
+  const rowCount = result?.rowCount ?? null;
+  const isReadResult = result?.type === 'read' || rows.length > 0;
   const hasError = result?.error;
 
   return (
@@ -188,6 +190,12 @@ export function QueryPlayground({ connectionId, connectionType }) {
       {!hasError && rowsAffected !== null && rowsAffected !== undefined && rows.length === 0 && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
           Query executed successfully. {rowsAffected} row(s) affected.
+        </div>
+      )}
+
+      {!hasError && isReadResult && rows.length === 0 && rowsAffected === null && result !== null && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+          Query returned 0 documents.
         </div>
       )}
 

@@ -83,6 +83,29 @@ export class PostgreSQLProvider extends DatabaseProvider {
     }
   }
 
+  /**
+   * Re-establish a live pg.Pool for an already-persisted connection ID.
+   * Used on server startup to restore pools without issuing new UUIDs.
+   */
+  async reconnectFromConfig(connectionId, config) {
+    const poolConfig = config.connectionString
+      ? { connectionString: config.connectionString, max: 10 }
+      : {
+          host: config.host,
+          port: config.port || 5432,
+          database: config.database,
+          user: config.user,
+          password: config.password,
+          max: 10
+        };
+
+    const pool = new Pool(poolConfig);
+    const client = await pool.connect();
+    client.release();
+    this.connections.set(connectionId, pool);
+    logger.info(`PostgreSQL auto-reconnected: ${config.connectionString || config.host} (${connectionId})`);
+  }
+
   // --- Explorer ---
 
   async listTables(connectionId) {

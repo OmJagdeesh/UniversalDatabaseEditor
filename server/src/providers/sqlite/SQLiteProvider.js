@@ -57,6 +57,18 @@ export class SQLiteProvider extends DatabaseProvider {
     }
   }
 
+  /**
+   * Re-open a better-sqlite3 Database for an already-persisted connection ID.
+   * Used on server startup to restore connections without issuing new UUIDs.
+   */
+  async reconnectFromConfig(connectionId, config) {
+    const { filePath } = config;
+    const db = new Database(filePath, { fileMustExist: false });
+    db.pragma('journal_mode = WAL');
+    this.connections.set(connectionId, db);
+    logger.info(`SQLite auto-reconnected: ${filePath} (${connectionId})`);
+  }
+
   // --- Explorer ---
 
   async listTables(connectionId) {

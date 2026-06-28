@@ -37,6 +37,17 @@ export class DatabaseProvider {
     throw new Error(`${this.displayName} testConnection() is not implemented yet.`);
   }
 
+  /**
+   * Re-establish the live database client for an existing connection ID.
+   * Called on server startup for each persisted connection so that clients
+   * are ready without the user having to manually reconnect.
+   * @param {string} connectionId - The saved connection ID to restore
+   * @param {object} config - Decrypted connection config
+   */
+  async reconnectFromConfig(/* connectionId, config */) {
+    throw new Error(`${this.displayName} reconnectFromConfig() is not implemented yet.`);
+  }
+
   // --- Explorer ---
 
   async listTables(/* connectionId */) {

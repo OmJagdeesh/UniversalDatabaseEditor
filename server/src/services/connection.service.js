@@ -1,15 +1,32 @@
-import { randomUUID } from 'node:crypto';
 import { getProvider } from '../providers/providerRegistry.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
 import { AppError } from '../utils/AppError.js';
 import { logger } from '../config/logger.js';
+import { connectionStore } from './connectionStore.js';
 
 /**
- * In-memory store for saved connections.
- * Each entry stores connection metadata + encrypted credentials.
- * @type {Map<string, object>}
+ * On server startup, restore live database clients for every connection
+ * that was persisted to disk. Failures are logged as warnings rather than
+ * crashing the server — a database may simply be unavailable at boot time.
  */
-const savedConnections = new Map();
+export async function initConnections() {
+  const entries = Array.from(connectionStore.entries());
+  if (entries.length === 0) return;
+
+  logger.info(`Restoring ${entries.length} persisted connection(s)...`);
+
+  await Promise.allSettled(
+    entries.map(async ([id, entry]) => {
+      try {
+        const provider = _resolveProvider(entry.type);
+        const config = _decryptConfig(entry.config, entry.type);
+        await provider.reconnectFromConfig(id, config);
+      } catch (err) {
+        logger.warn(`Could not auto-reconnect ${entry.name} (${id}): ${err.message}`);
+      }
+    })
+  );
+}
 
 /**
  * Create and open a new database connection.
@@ -27,7 +44,7 @@ export async function createConnection(params) {
     config: _encryptSensitiveFields(params)
   };
 
-  savedConnections.set(connectionId, entry);
+  connectionStore.set(connectionId, entry);
   logger.info(`Connection created: ${entry.name} (${connectionId})`);
 
   return _sanitizeConnection(entry);
@@ -37,14 +54,14 @@ export async function createConnection(params) {
  * List all saved connections (passwords masked).
  */
 export async function listConnections() {
-  return Array.from(savedConnections.values()).map(_sanitizeConnection);
+  return Array.from(connectionStore.values()).map(_sanitizeConnection);
 }
 
 /**
  * Get a single connection by id (passwords masked).
  */
 export async function getConnection(id) {
-  const entry = savedConnections.get(id);
+  const entry = connectionStore.get(id);
   if (!entry) throw AppError.notFound(`Connection not found: ${id}`);
   return _sanitizeConnection(entry);
 }
@@ -53,7 +70,7 @@ export async function getConnection(id) {
  * Update an existing connection's metadata or credentials.
  */
 export async function updateConnection(id, params) {
-  const entry = savedConnections.get(id);
+  const entry = connectionStore.get(id);
   if (!entry) throw AppError.notFound(`Connection not found: ${id}`);
 
   // If connection params changed, reconnect
@@ -73,7 +90,7 @@ export async function updateConnection(id, params) {
   if (params.name) entry.name = params.name;
   entry.updatedAt = new Date().toISOString();
 
-  savedConnections.set(id, entry);
+  connectionStore.set(id, entry);
   return _sanitizeConnection(entry);
 }
 
@@ -81,7 +98,7 @@ export async function updateConnection(id, params) {
  * Delete a connection and disconnect.
  */
 export async function deleteConnection(id) {
-  const entry = savedConnections.get(id);
+  const entry = connectionStore.get(id);
   if (!entry) throw AppError.notFound(`Connection not found: ${id}`);
 
   const provider = _resolveProvider(entry.type);
@@ -91,7 +108,7 @@ export async function deleteConnection(id) {
     logger.warn(`Error disconnecting ${id}: ${err.message}`);
   }
 
-  savedConnections.delete(id);
+  connectionStore.delete(id);
   logger.info(`Connection deleted: ${id}`);
 }
 
@@ -107,7 +124,7 @@ export async function testConnection(params) {
  * Reconnect an existing connection.
  */
 export async function reconnect(id) {
-  const entry = savedConnections.get(id);
+  const entry = connectionStore.get(id);
   if (!entry) throw AppError.notFound(`Connection not found: ${id}`);
 
   const provider = _resolveProvider(entry.type);
@@ -122,10 +139,10 @@ export async function reconnect(id) {
   const newConnectionId = await provider.connect(config);
 
   // Re-map with new connection id
-  savedConnections.delete(id);
+  connectionStore.delete(id);
   entry.id = newConnectionId;
   entry.updatedAt = new Date().toISOString();
-  savedConnections.set(newConnectionId, entry);
+  connectionStore.set(newConnectionId, entry);
 
   logger.info(`Reconnected: ${entry.name} (${newConnectionId})`);
   return _sanitizeConnection(entry);
@@ -135,11 +152,11 @@ export async function reconnect(id) {
  * Toggle favorite status.
  */
 export async function toggleFavorite(id) {
-  const entry = savedConnections.get(id);
+  const entry = connectionStore.get(id);
   if (!entry) throw AppError.notFound(`Connection not found: ${id}`);
 
   entry.favorite = !entry.favorite;
-  savedConnections.set(id, entry);
+  connectionStore.set(id, entry);
   return _sanitizeConnection(entry);
 }
 
@@ -148,7 +165,7 @@ export async function toggleFavorite(id) {
  * Exported so other services can look up the provider for a given connection.
  */
 export function resolveProviderForConnection(connectionId) {
-  const entry = savedConnections.get(connectionId);
+  const entry = connectionStore.get(connectionId);
   if (!entry) throw AppError.notFound(`Connection not found: ${connectionId}`);
   return _resolveProvider(entry.type);
 }
@@ -196,3 +213,4 @@ function _sanitizeConnection(entry) {
     }
   };
 }
+

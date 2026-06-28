@@ -63,6 +63,20 @@ export class MongoProvider extends DatabaseProvider {
     }
   }
 
+  /**
+   * Re-establish a live MongoClient for an already-persisted connection ID.
+   * Used on server startup to restore clients without issuing new UUIDs.
+   */
+  async reconnectFromConfig(connectionId, config) {
+    const { uri, database } = config;
+    const client = new MongoClient(uri);
+    await client.connect();
+    const db = client.db(database);
+    await db.command({ ping: 1 });
+    this.connections.set(connectionId, { client, db });
+    logger.info(`MongoDB auto-reconnected: ${database} (${connectionId})`);
+  }
+
   // --- Explorer ---
 
   async listTables(connectionId) {
